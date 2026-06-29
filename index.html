@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Buscador Universal</title>
+<style>
+  :root{
+    --bg:#0f0f0f; --card:#1a1a1a; --muted:#222; --accent:#ffcc00; --danger:#c40000;
+    --text:#ffffff; --text-muted:#aaa;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:system-ui,Arial,Helvetica;
+    margin:0;
+    padding:20px;
+    display:flex;
+    justify-content:center;
+    min-height:100vh;
+  }
+
+  .wrap{ width:100%; max-width:900px; }
+
+  h1{ 
+    text-align:center; 
+    margin:0 0 24px; 
+    font-size:28px; 
+    font-weight:700;
+    letter-spacing:-0.5px;
+  }
+  h1 span{ color:var(--accent); }
+
+  .search-wrap{
+    background:var(--card);
+    border-radius:16px;
+    padding:20px 24px;
+    border:1px solid #2a2a2a;
+    margin-bottom:20px;
+  }
+
+  .search-row{
+    display:flex;
+    gap:12px;
+    align-items:center;
+  }
+
+  .search-row input{
+    flex:1;
+    background:var(--bg);
+    color:var(--text);
+    border:1px solid #333;
+    padding:14px 18px;
+    border-radius:12px;
+    font-size:16px;
+    transition:border 0.2s;
+  }
+  .search-row input:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+
+  .search-row button{
+    background:var(--accent);
+    color:#000;
+    border:0;
+    padding:14px 24px;
+    border-radius:12px;
+    font-weight:700;
+    font-size:16px;
+    cursor:pointer;
+    transition:transform 0.15s, filter 0.15s;
+    white-space:nowrap;
+  }
+  .search-row button:hover{
+    transform:scale(1.03);
+    filter:brightness(1.05);
+  }
+  .search-row button:disabled{
+    opacity:0.5;
+    cursor:not-allowed;
+    transform:none;
+  }
+
+  /* ===== RESUMEN DEL JUEGO (desde iframe) ===== */
+  .game-summary{
+    background:var(--card);
+    border-radius:16px;
+    padding:20px 24px;
+    border:1px solid #2a2a2a;
+    margin-bottom:20px;
+    display:none;
+    animation:fadeIn 0.4s ease;
+  }
+  .game-summary.visible{ display:flex; }
+  .game-summary.loading{ opacity:0.6; pointer-events:none; }
+
+  .game-summary-inner{
+    display:flex;
+    gap:20px;
+    width:100%;
+  }
+
+  .game-cover{
+    flex-shrink:0;
+    width:140px;
+    height:200px;
+    border-radius:10px;
+    background:#222;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid #333;
+  }
+  .game-cover img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .game-cover .no-cover{
+    color:var(--text-muted);
+    font-size:13px;
+    text-align:center;
+    padding:10px;
+  }
+
+  .game-info{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    min-width:0;
+  }
+  .game-info .game-title{
+    font-size:22px;
+    font-weight:700;
+    margin:0;
+  }
+  .game-info .game-title span{ color:var(--accent); }
+  .game-info .game-description{
+    color:var(--text-muted);
+    font-size:14px;
+    line-height:1.6;
+    margin:0;
+    overflow:hidden;
+    display:-webkit-box;
+    -webkit-line-clamp:6;
+    -webkit-box-orient:vertical;
+  }
+  .game-info .game-meta{
+    display:flex;
+    gap:16px;
+    font-size:13px;
+    color:var(--text-muted);
+    margin-top:auto;
+    flex-wrap:wrap;
+  }
+  .game-info .game-meta span{ display:flex; align-items:center; gap:4px; }
+  .game-info .game-meta .rating{ color:var(--accent); }
+
+  .results-title{
+    font-size:18px;
+    font-weight:600;
+    margin:16px 0 14px;
+    color:var(--text-muted);
+  }
+  .results-title span{ color:var(--text); }
+
+  /* ===== GRID DE CARTAS ===== */
+  .results{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap:14px;
+    margin-top:4px;
+  }
+
+  .result-item{
+    background:var(--card);
+    padding:18px 16px 16px;
+    border-radius:14px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    gap:10px;
+    border:1px solid #282828;
+    animation:fadeIn 0.25s ease;
+    transition:border-color 0.2s, transform 0.15s;
+  }
+  .result-item:hover{
+    border-color:var(--accent);
+    transform:translateY(-3px);
+  }
+
+  @keyframes fadeIn{
+    from{ opacity:0; transform:scale(0.95) translateY(6px); }
+    to{ opacity:1; transform:scale(1) translateY(0); }
+  }
+
+  .result-favicon{
+    width:48px;
+    height:48px;
+    border-radius:10px;
+    background:#222;
+    flex-shrink:0;
+  }
+
+  .result-name{
+    font-size:14px;
+    font-weight:500;
+    line-height:1.3;
+    word-break:break-word;
+    max-width:100%;
+  }
+
+  .open-btn{
+    background:var(--accent);
+    color:#000;
+    border:0;
+    padding:8px 0;
+    border-radius:8px;
+    font-weight:700;
+    font-size:13px;
+    cursor:pointer;
+    transition:transform 0.15s, filter 0.15s;
+    width:100%;
+    margin-top:auto;
+  }
+  .open-btn:hover{
+    transform:scale(1.04);
+    filter:brightness(1.05);
+  }
+
+  /* ===== BOTÓN + ===== */
+  .add-btn-wrap{
+    display:flex;
+    justify-content:center;
+    margin-top:16px;
+  }
+
+  .add-btn{
+    background:var(--card);
+    color:var(--text);
+    border:1px solid #333;
+    width:48px;
+    height:48px;
+    border-radius:50%;
+    font-size:28px;
+    font-weight:300;
+    cursor:pointer;
+    transition:background 0.2s, transform 0.15s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .add-btn:hover{
+    background:#2a2a2a;
+    transform:scale(1.05);
+  }
+
+  /* ===== MODAL ===== */
+  .modal-overlay{
+    position:fixed;
+    top:0; left:0; right:0; bottom:0;
+    background:rgba(0,0,0,0.7);
+    backdrop-filter:blur(6px);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:1000;
+    padding:20px;
+  }
+  .modal-overlay.active{ display:flex; }
+
+  .modal{
+    background:var(--card);
+    border-radius:20px;
+    padding:28px 32px;
+    max-width:500px;
+    width:100%;
+    border:1px solid #2a2a2a;
+    animation:fadeIn 0.2s ease;
+    position:relative;
+  }
+
+  .modal h2{
+    margin:0 0 8px;
+    font-size:22px;
+  }
+  .modal p{
+    color:var(--text-muted);
+    font-size:14px;
+    margin:0 0 18px;
+  }
+
+  .modal .row{
+    display:flex;
+    gap:10px;
+  }
+  .modal .row input{
+    flex:1;
+    background:var(--bg);
+    color:var(--text);
+    border:1px solid #333;
+    padding:12px 16px;
+    border-radius:10px;
+    font-size:14px;
+  }
+  .modal .row input:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+
+  .modal .row button{
+    background:var(--accent);
+    color:#000;
+    border:0;
+    padding:12px 20px;
+    border-radius:10px;
+    font-weight:700;
+    cursor:pointer;
+    font-size:14px;
+  }
+
+  .modal .store-list{
+    margin-top:14px;
+    max-height:200px;
+    overflow-y:auto;
+  }
+
+  .modal .store-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 6px 8px 12px;
+    border-bottom:1px solid #282828;
+    gap:8px;
+  }
+  .modal .store-item:last-child{ border-bottom:0; }
+
+  .modal .store-left{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-width:0;
+  }
+  .modal .store-favicon{
+    width:20px;
+    height:20px;
+    border-radius:4px;
+    flex-shrink:0;
+  }
+  .modal .store-name{
+    font-size:14px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .modal .delete-btn{
+    background:transparent;
+    color:var(--text-muted);
+    border:0;
+    font-size:18px;
+    cursor:pointer;
+    padding:4px 8px;
+    border-radius:6px;
+    transition:background 0.2s, color 0.2s;
+  }
+  .modal .delete-btn:hover{
+    background:var(--danger);
+    color:#fff;
+  }
+
+  .modal .empty-msg{
+    color:var(--text-muted);
+    text-align:center;
+    padding:16px 0;
+    font-size:14px;
+  }
+
+  .close-modal{
+    background:transparent;
+    color:var(--text-muted);
+    border:0;
+    font-size:24px;
+    cursor:pointer;
+    position:absolute;
+    top:12px;
+    right:18px;
+  }
+  .close-modal:hover{ color:var(--text); }
+
+  /* ===== IFRAME OCULTO ===== */
+  #scraperFrame{
+    display:none;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width:650px){
+    .game-summary-inner{ flex-direction:column; align-items:center; text-align:center; }
+    .game-cover{ width:120px; height:170px; }
+    .game-info .game-meta{ justify-content:center; }
+  }
+
+  @media (max-width:550px){
+    .search-row{ flex-direction:column; }
+    .search-row button{ width:100%; justify-content:center; }
+    .modal{ padding:20px; }
+    .modal .row{ flex-direction:column; }
+    .modal .row button{ width:100%; }
+    body{ padding:12px; }
+    .search-wrap{ padding:16px; }
+    .results{ grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+    .result-item{ padding:14px 12px; }
+    .result-favicon{ width:40px; height:40px; }
+    .game-summary{ padding:16px; }
+    .game-info .game-title{ font-size:18px; }
+  }
+
+  @media (max-width:400px){
+    .results{ grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+    .result-name{ font-size:12px; }
+    .open-btn{ font-size:12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎮 <span>Buscador</span> Universal</h1>
+
+  <div class="search-wrap">
+    <div class="search-row">
+      <input id="searchInput" type="text" placeholder="Escribí el nombre del juego..." />
+      <button id="searchBtn">🔍 Buscar</button>
+    </div>
+  </div>
+
+  <!-- ===== RESUMEN DEL JUEGO ===== -->
+  <div id="gameSummary" class="game-summary">
+    <div class="game-summary-inner">
+      <div class="game-cover" id="gameCover">
+        <div class="no-cover">🎮<br>Sin portada</div>
+      </div>
+      <div class="game-info">
+        <h2 class="game-title" id="gameTitle">Título</h2>
+        <p class="game-description" id="gameDesc">Descripción del juego...</p>
+        <div class="game-meta">
+          <span id="gameSource">⭐ Fuente: -</span>
+          <span id="gameYear">📅 Año: -</span>
+          <span id="gamePlatform">🖥️ Plataforma: -</span>
+          <span id="gameRating" class="rating">⭐ -</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultsWrap">
+    <div id="resultsTitle" class="results-title"></div>
+    <div id="results" class="results"></div>
+  </div>
+
+  <div class="add-btn-wrap">
+    <button class="add-btn" id="openModalBtn">+</button>
+  </div>
+</div>
+
+<!-- IFRAME OCULTO PARA EXTRAER DATOS -->
+<iframe id="scraperFrame"></iframe>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <button class="close-modal" id="closeModalBtn">✕</button>
+    <h2>Gestionar tiendas</h2>
+    <p>Agregá o eliminá páginas donde buscar juegos.</p>
+
+    <div class="row">
+      <input id="storeInput" type="text" placeholder="URL base (ej: https://store.steampowered.com)" />
+      <button id="addBtn">Agregar</button>
+    </div>
+
+    <div id="storeList" class="store-list"></div>
+  </div>
+</div>
+
+<script>
+/* ==========================================
+   UTILIDADES
+========================================== */
+function normalizeUrl(u){
+  try{
+    u = u.trim();
+    if(!u) return "";
+    if(!u.startsWith("http")) u = "https://" + u;
+    if(u.endsWith("/")) u = u.slice(0,-1);
+    return u;
+  }catch(e){ return u; }
+}
+
+function domainOf(u){
+  try{
+    const url = new URL(u);
+    return url.host.replace(/^www\./,'');
+  }catch(e){
+    return u.replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0];
+  }
+}
+
+function faviconFor(domain){
+  return `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+}
+
+const FRIENDLY_NAMES = {
+  "freegogpcgames.com": "Free GOG PC Games",
+  "igg-games.com": "IGG Games",
+  "gamestorrents.app": "GamesTorrents",
+  "www.gamestorrents.app": "GamesTorrents",
+  "elamigosgames.net": "Elamigos Games",
+  "www.elamigosgames.net": "Elamigos Games",
+  "pivigames.blog": "Pivigames",
+  "bbzhittogames.com": "BBZhitto Games",
+  "elenemigos.com": "ElEnemigos",
+  "store.steampowered.com": "Steam",
+  "www.xbox.com": "Xbox Store",
+  "xbox.com": "Xbox Store",
+};
+
+function friendlyNameOf(domain){
+  return FRIENDLY_NAMES[domain] || domain;
+}
+
+/* ==========================================
+   PATRONES DE BUSQUEDA
+========================================== */
+const PATTERNS = {
+  "freegogpcgames.com": q => `https://freegogpcgames.com/?s=${q}`,
+  "igg-games.com": q => `https://igg-games.com/?s=${q}`,
+  "gamestorrents.app": q => `https://www.gamestorrents.app/home/?s=${q}`,
+  "www.gamestorrents.app": q => `https://www.gamestorrents.app/home/?s=${q}`,
+  "elamigosgames.net": q => `https://www.elamigosgames.net/?q=${q}`,
+  "www.elamigosgames.net": q => `https://www.elamigosgames.net/?q=${q}`,
+  "pivigames.blog": q => `https://pivigames.blog/?s=${q}`,
+  "bbzhittogames.com": q => `https://www.bbzhittogames.com/search?q=${q}`,
+  "elenemigos.com": q => `https://elenemigos.com/?g_name=${q}&order=last_update`,
+  "store.steampowered.com": q => `https://store.steampowered.com/search/?term=${q}`,
+  "www.xbox.com": q => `https://www.xbox.com/es-AR/Search/Results?q=${q}`,
+  "xbox.com": q => `https://www.xbox.com/es-AR/Search/Results?q=${q}`,
+};
+
+/* ==========================================
+   TIENDAS POR DEFECTO
+========================================== */
+const DEFAULT_STORES = [
+  "https://freegogpcgames.com",
+  "https://igg-games.com",
+  "https://www.gamestorrents.app",
+  "https://www.elamigosgames.net",
+  "https://pivigames.blog",
+  "https://www.bbzhittogames.com",
+  "https://elenemigos.com",
+  "https://store.steampowered.com",
+  "https://www.xbox.com"
+];
+
+let stores = [];
+try{
+  const saved = localStorage.getItem("uv_stores_v2");
+  stores = saved ? JSON.parse(saved) : DEFAULT_STORES.slice();
+}catch(e){
+  stores = DEFAULT_STORES.slice();
+}
+
+if(!stores.some(s => domainOf(s) === 'elenemigos.com')){
+  stores.push('https://elenemigos.com');
+}
+
+/* ==========================================
+   DOM
+========================================== */
+const searchInput = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
+const resultsEl = document.getElementById("results");
+const resultsTitle = document.getElementById("resultsTitle");
+const scraperFrame = document.getElementById("scraperFrame");
+
+const gameSummary = document.getElementById("gameSummary");
+const gameCover = document.getElementById("gameCover");
+const gameTitle = document.getElementById("gameTitle");
+const gameDesc = document.getElementById("gameDesc");
+const gameSource = document.getElementById("gameSource");
+const gameYear = document.getElementById("gameYear");
+const gamePlatform = document.getElementById("gamePlatform");
+const gameRating = document.getElementById("gameRating");
+
+const modalOverlay = document.getElementById("modalOverlay");
+const openModalBtn = document.getElementById("openModalBtn");
+const closeModalBtn = document.getElementById("closeModalBtn");
+const storeInput = document.getElementById("storeInput");
+const addBtn = document.getElementById("addBtn");
+const storeListEl = document.getElementById("storeList");
+
+/* ==========================================
+   MODAL
+========================================== */
+function openModal(){ modalOverlay.classList.add("active"); }
+function closeModal(){ modalOverlay.classList.remove("active"); }
+
+openModalBtn.addEventListener("click", openModal);
+closeModalBtn.addEventListener("click", closeModal);
+modalOverlay.addEventListener("click", (e) => {
+  if(e.target === modalOverlay) closeModal();
+});
+
+document.addEventListener("keydown", (e) => {
+  if(e.key === "Escape") closeModal();
+});
+
+/* ==========================================
+   RENDER STORE LIST
+========================================== */
+function saveStores(){
+  localStorage.setItem("uv_stores_v2", JSON.stringify(stores));
+}
+
+function renderStoreList(){
+  storeListEl.innerHTML = "";
+  if(stores.length === 0){
+    const empty = document.createElement("div");
+    empty.className = "empty-msg";
+    empty.textContent = "No hay tiendas agregadas. Agregá una arriba.";
+    storeListEl.appendChild(empty);
+    return;
+  }
+
+  stores.forEach((s, idx) => {
+    const dom = domainOf(s);
+    const displayName = friendlyNameOf(dom);
+    const item = document.createElement("div");
+    item.className = "store-item";
+
+    const left = document.createElement("div");
+    left.className = "store-left";
+
+    const icon = document.createElement("img");
+    icon.className = "store-favicon";
+    icon.src = faviconFor(dom);
+    icon.alt = dom;
+
+    const name = document.createElement("span");
+    name.className = "store-name";
+    name.textContent = displayName;
+
+    left.appendChild(icon);
+    left.appendChild(name);
+
+    const del = document.createElement("button");
+    del.className = "delete-btn";
+    del.textContent = "✕";
+    del.title = "Eliminar";
+    del.onclick = () => {
+      stores.splice(idx, 1);
+      saveStores();
+      renderStoreList();
+    };
+
+    item.appendChild(left);
+    item.appendChild(del);
+    storeListEl.appendChild(item);
+  });
+}
+
+/* ==========================================
+   AGREGAR TIENDA
+========================================== */
+addBtn.addEventListener("click", () => {
+  let raw = storeInput.value;
+  if(!raw) return;
+  let n = normalizeUrl(raw);
+  if(!n) return;
+  const dom = domainOf(n);
+  if(stores.some(s => domainOf(s) === dom)){
+    storeInput.value = "";
+    return;
+  }
+  stores.push(n);
+  saveStores();
+  renderStoreList();
+  storeInput.value = "";
+});
+
+storeInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter") addBtn.click();
+});
+
+/* ==========================================
+   EXTRAER DATOS DEL JUEGO DESDE ELENEMIGOS (via iframe)
+========================================== */
+function scrapeGameFromElEnemigos(query){
+  return new Promise((resolve) => {
+    const frame = scraperFrame;
+    const url = `https://elenemigos.com/?g_name=${encodeURIComponent(query)}&order=last_update`;
+    let resolved = false;
+    
+    const timeout = setTimeout(() => {
+      if(!resolved){
+        resolved = true;
+        resolve(null);
+      }
+    }, 10000);
+
+    frame.onload = () => {
+      clearTimeout(timeout);
+      if(resolved) return;
+      resolved = true;
+
+      try{
+        const doc = frame.contentDocument || frame.contentWindow?.document;
+        if(!doc){
+          resolve(null);
+          return;
+        }
+
+        // Buscar el juego en los resultados
+        const items = doc.querySelectorAll('.item, .col-md-3, .game-item, .post-item, .row > div[class*="col"]');
+        let foundItem = null;
+        let foundTitle = '';
+
+        for(const item of items){
+          const text = item.textContent.toLowerCase();
+          if(text.includes(query.toLowerCase())){
+            foundItem = item;
+            break;
+          }
+        }
+
+        if(!foundItem){
+          resolve(null);
+          return;
+        }
+
+        // Extraer datos
+        const data = {};
+
+        // Título
+        const titleEl = foundItem.querySelector('h2, h3, .title, .item-title, a[title]');
+        if(titleEl){
+          data.title = titleEl.textContent.trim() || titleEl.getAttribute('title') || query;
+        }else{
+          data.title = query;
+        }
+
+        // Descripción
+        const descSelectors = ['.description', '.item-description', '.desc', '.content p', '.excerpt', '.text-muted'];
+        let desc = '';
+        for(const sel of descSelectors){
+          const el = foundItem.querySelector(sel);
+          if(el){
+            desc = el.textContent.trim();
+            break;
+          }
+        }
+        if(!desc || desc.length < 20){
+          const clone = foundItem.cloneNode(true);
+          const toRemove = clone.querySelectorAll('h2, h3, .title, .item-title, img, .btn, a, .meta, .date');
+          toRemove.forEach(el => el.remove());
+          desc = clone.textContent.trim();
+        }
+        desc = desc.replace(/Leer más\.\.\./gi, '').replace(/Read more\.\.\./gi, '').replace(/\s+/g, ' ').trim();
+        data.description = desc || 'Sin descripción disponible.';
+
+        // Portada
+        const img = foundItem.querySelector('img');
+        let coverUrl = '';
+        if(img){
+          coverUrl = img.getAttribute('src') || img.getAttribute('data-src') || '';
+          if(coverUrl && !coverUrl.startsWith('http')){
+            coverUrl = 'https://elenemigos.com' + (coverUrl.startsWith('/') ? '' : '/') + coverUrl;
+          }
+        }
+        data.cover = coverUrl || '';
+
+        // Año (buscar 4 dígitos)
+        const yearMatch = foundItem.textContent.match(/\b(19|20)\d{2}\b/);
+        data.year = yearMatch ? yearMatch[0] : '';
+
+        // Plataforma
+        const platforms = ['PC', 'PlayStation', 'PS4', 'PS5', 'Xbox', 'Switch', 'Nintendo', 'Steam', 'Epic', 'Xbox One', 'Xbox Series'];
+        let platform = '';
+        for(const p of platforms){
+          if(foundItem.textContent.includes(p)){
+            platform = p;
+            break;
+          }
+        }
+        data.platform = platform;
+
+        data.source = 'ElEnemigos';
+        resolve(data);
+
+      }catch(e){
+        resolve(null);
+      }
+    };
+
+    frame.onerror = () => {
+      clearTimeout(timeout);
+      if(!resolved){
+        resolved = true;
+        resolve(null);
+      }
+    };
+
+    frame.src = url;
+  });
+}
+
+/* ==========================================
+   OBTENER RESUMEN DEL JUEGO
+========================================== */
+async function fetchGameSummary(query){
+  // Mostrar loading
+  gameSummary.classList.add('visible', 'loading');
+  gameCover.innerHTML = `<div class="no-cover">⏳<br>Cargando...</div>`;
+  gameTitle.textContent = query;
+  gameDesc.textContent = 'Buscando información en ElEnemigos...';
+  gameSource.textContent = '⭐ Fuente: -';
+  gameYear.textContent = '📅 Año: -';
+  gamePlatform.textContent = '🖥️ Plataforma: -';
+  gameRating.textContent = '⭐ -';
+
+  try{
+    const data = await scrapeGameFromElEnemigos(query);
+    
+    if(data){
+      // Portada
+      if(data.cover){
+        gameCover.innerHTML = `<img src="${data.cover}" alt="${data.title}" loading="lazy" 
+          onerror="this.parentElement.innerHTML='<div class=\\'no-cover\\'>🎮<br>Sin portada</div>'" />`;
+      }else{
+        gameCover.innerHTML = `<div class="no-cover">🎮<br>Sin portada</div>`;
+      }
+
+      gameTitle.textContent = data.title || query;
+      gameDesc.textContent = data.description || 'Sin descripción disponible.';
+      gameYear.textContent = `📅 Año: ${data.year || '-'}`;
+      gamePlatform.textContent = `🖥️ Plataforma: ${data.platform || '-'}`;
+      gameSource.textContent = `⭐ Fuente: ${data.source}`;
+      gameRating.textContent = '⭐ Sin calificación';
+
+      gameSummary.classList.remove('loading');
+      return true;
+    }else{
+      // No se encontró en ElEnemigos
+      gameCover.innerHTML = `<div class="no-cover">🎮<br>Sin portada</div>`;
+      gameTitle.textContent = query;
+      gameDesc.textContent = 'No se encontró información en ElEnemigos para este juego. Probá buscando con otro nombre o revisá directamente en las tiendas.';
+      gameSource.textContent = '⭐ Fuente: No disponible';
+      gameYear.textContent = '📅 Año: -';
+      gamePlatform.textContent = '🖥️ Plataforma: -';
+      gameRating.textContent = '⭐ -';
+      gameSummary.classList.remove('loading');
+      return false;
+    }
+
+  }catch(e){
+    gameCover.innerHTML = `<div class="no-cover">🎮<br>Sin portada</div>`;
+    gameTitle.textContent = query;
+    gameDesc.textContent = 'No se pudo obtener información. Verificá tu conexión o probá con otro nombre.';
+    gameSource.textContent = '⭐ Fuente: Error';
+    gameYear.textContent = '📅 Año: -';
+    gamePlatform.textContent = '🖥️ Plataforma: -';
+    gameRating.textContent = '⭐ -';
+    gameSummary.classList.remove('loading');
+    return false;
+  }
+}
+
+/* ==========================================
+   BUSCAR - GRID DE CARTAS + RESUMEN
+========================================== */
+async function renderResultsFor(query){
+  resultsEl.innerHTML = "";
+  
+  if(!query){
+    resultsTitle.textContent = '';
+    gameSummary.classList.remove('visible');
+    return;
+  }
+
+  // Mostrar resumen
+  gameSummary.classList.add('visible');
+  await fetchGameSummary(query);
+
+  resultsTitle.innerHTML = `🔍 Resultados para "<span>${query}</span>" (${stores.length} tiendas)`;
+
+  stores.forEach(store => {
+    const dom = domainOf(store);
+    const searchUrl = PATTERNS[dom] 
+      ? PATTERNS[dom](encodeURIComponent(query).replace(/%20/g,'+'))
+      : store + "/?s=" + encodeURIComponent(query).replace(/%20/g,'+');
+
+    const item = document.createElement("div");
+    item.className = "result-item";
+
+    const favicon = document.createElement("img");
+    favicon.className = "result-favicon";
+    favicon.src = faviconFor(dom);
+    favicon.alt = dom;
+    favicon.loading = "lazy";
+
+    const name = document.createElement("div");
+    name.className = "result-name";
+    name.textContent = friendlyNameOf(dom);
+
+    const openBtn = document.createElement("button");
+    openBtn.className = "open-btn";
+    openBtn.textContent = "Abrir";
+    openBtn.onclick = () => window.open(searchUrl, "_blank");
+
+    item.appendChild(favicon);
+    item.appendChild(name);
+    item.appendChild(openBtn);
+    resultsEl.appendChild(item);
+  });
+}
+
+/* ==========================================
+   EVENTOS
+========================================== */
+searchInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter") searchBtn.click();
+});
+
+searchBtn.addEventListener("click", async () => {
+  const q = searchInput.value.trim();
+  searchBtn.disabled = true;
+  searchBtn.textContent = '⏳ Buscando...';
+  await renderResultsFor(q);
+  searchBtn.disabled = false;
+  searchBtn.textContent = '🔍 Buscar';
+});
+
+/* ==========================================
+   INIT
+========================================== */
+saveStores();
+renderStoreList();
+
+// Si hay un query en la URL
+const urlParams = new URLSearchParams(window.location.search);
+const queryParam = urlParams.get('q');
+if(queryParam){
+  searchInput.value = queryParam;
+  renderResultsFor(queryParam);
+}
+</script>
+</body>
+</html>
